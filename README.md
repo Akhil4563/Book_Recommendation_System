@@ -12,7 +12,7 @@
 **Role:** Project Manager
 **Type:** Academic Capstone Project
  
-This was a personal capstone project where I took on the Project Manager role within a small team. My responsibilities included:
+This was an academic capstone project where I took on the Project Manager role within a small team. My responsibilities included:
  
 - 📋 **Requirements & Scope** — Defined the project idea, scope, and functional requirements for the recommendation engine and chatbot interface
 - 🗓️ **Sprint Planning** — Organised development into sprints, set milestones, and kept the team on track to deliver
