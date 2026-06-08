@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.INFO)
 
 # Flask app initialization
 app = Flask(__name__)
-CORS(app) 
+CORS(app, origins=["*"])
 socketio = SocketIO(app)
 
 # HTTP webhook route for handling POST requests
