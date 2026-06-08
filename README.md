@@ -10,7 +10,7 @@
  
 **Name:** Akhil Vijayan
 **Role:** Project Manager
-**Type:** Personal Capstone Project
+**Type:** Academic Capstone Project
  
 This was a personal capstone project where I took on the Project Manager role within a small team. My responsibilities included:
  
