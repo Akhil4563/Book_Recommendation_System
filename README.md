@@ -8,7 +8,7 @@
  
 ## 🌐 Live Demo
  
-- **Frontend:** [bookmind.vercel.app](https://bookmind.vercel.app)
+- **Frontend:** [bookmind.vercel.app](https://bookmindaiguide.vercel.app/)
 - **Backend API:** Powered by Flask + Gunicorn
 ---
  
