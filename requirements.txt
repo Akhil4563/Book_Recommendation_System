@@ -7,7 +7,7 @@ seaborn
 scikit-learn
 torch
 textblob
-gensim
+gensim==4.3.2
 networkx
 transformers
 huggingface_hub
