@@ -10,9 +10,9 @@
  
 **Name:** Akhil Vijayan
 **Role:** Project Manager
-**Type:** Academic Capstone Project
+**Type:** University Capstone Project — University of Ottawa
  
-This was an academic capstone project where I took on the Project Manager role within a small team. My responsibilities included:
+This was a academic capstone project where I took on the Project Manager role within a small team. My responsibilities included:
  
 - 📋 **Requirements & Scope** — Defined the project idea, scope, and functional requirements for the recommendation engine and chatbot interface
 - 🗓️ **Sprint Planning** — Organised development into sprints, set milestones, and kept the team on track to deliver
@@ -200,13 +200,13 @@ Open `frontend/index.html` in a browser, or deploy to Vercel.
  
 ## 👥 Team
  
+> Created by Students of the University of Ottawa
+ 
 | Name | Role |
 |---|---|
 | **Akhil Vijayan** | Project Manager |
-| | ML Engineer |
-| | Backend Developer |
-| | Data Engineer |
-| | Frontend Developer |
+| **Milad Kianzadah** | Backend Developer |
+| **Sharini Rithigaa Baranisrinivasan Sumalatha** | Full Stack Developer |
  
 ---
  
