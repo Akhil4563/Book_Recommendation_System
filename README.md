@@ -6,9 +6,25 @@
  
 ---
  
+## 👤 My Role — Project Manager
+ 
+**Name:** Akhil Vijayan
+**Role:** Project Manager
+**Type:** Personal Capstone Project
+ 
+This was a personal capstone project where I took on the Project Manager role within a small team. My responsibilities included:
+ 
+- 📋 **Requirements & Scope** — Defined the project idea, scope, and functional requirements for the recommendation engine and chatbot interface
+- 🗓️ **Sprint Planning** — Organised development into sprints, set milestones, and kept the team on track to deliver
+- 👥 **Team Coordination** — Coordinated between team members handling ML, backend, data, and frontend to ensure everything came together
+- 🚀 **Deployment Oversight** — Managed the deployment process including backend setup and frontend hosting on Vercel
+- 🧪 **QA & Testing** — Coordinated testing across the full stack and ensured the system worked end to end
+- 📝 **Documentation** — Authored all project documentation including this README, API reference, and system architecture
+---
+ 
 ## 🌐 Live Demo
  
-- **Frontend:** [bookmind.vercel.app](https://bookmindaiguide.vercel.app/)
+- **Frontend:** [bookmind.vercel.app](https://bookmind.vercel.app)
 - **Backend API:** Powered by Flask + Gunicorn
 ---
  
@@ -114,7 +130,7 @@ Book_Recommendation_System/
  
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-username/Book_Recommendation_System.git
+git clone https://github.com/Akhil4563/Book_Recommendation_System.git
 cd Book_Recommendation_System
  
 # 2. Create virtual environment
@@ -136,10 +152,7 @@ Server starts on `http://localhost:5000`
  
 ### Frontend Setup
  
-```bash
-# Simply open frontend/index.html in a browser
-# OR deploy to Vercel (see deployment section)
-```
+Open `frontend/index.html` in a browser, or deploy to Vercel.
  
 ---
  
@@ -185,25 +198,15 @@ Server starts on `http://localhost:5000`
 5. **Graph Recommendations** — Similar books are found by matching common entities in the knowledge graph
 ---
  
-## 🖥️ Frontend UI
- 
-The frontend (`frontend/index.html`) is a single-page literary-themed app with:
- 
-- **Explore mode** — Search any book, choose an intent, get a styled result card
-- **Ask AI mode** — Conversational chat that auto-detects intent from natural language
-- **Quick chips** — One-click shortcuts to popular searches
-- **Responsive design** — Works on desktop and mobile
----
- 
 ## 👥 Team
  
-| Role | Responsibility |
+| Name | Role |
 |---|---|
-| **Project Manager** | Requirements gathering, sprint planning, stakeholder coordination, delivery oversight |
-| **ML Engineer** | NLP pipeline, BART integration, LDA topic modeling |
-| **Backend Developer** | Flask API, WebSocket server, Dialogflow integration |
-| **Data Engineer** | Dataset cleaning, MySQL schema, graph construction |
-| **Frontend Developer** | UI design, Vercel deployment |
+| **Akhil Vijayan** | Project Manager |
+| | ML Engineer |
+| | Backend Developer |
+| | Data Engineer |
+| | Frontend Developer |
  
 ---
  
