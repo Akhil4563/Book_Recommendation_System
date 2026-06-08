@@ -26,6 +26,7 @@ This was a academic capstone project where I took on the Project Manager role wi
  
 - **Frontend:** [bookmind.vercel.app](https://bookmind.vercel.app)
 - **Backend API:** Powered by Flask + Gunicorn
+- **📄 Project Documentation:** [Download Full Dev Doc](https://brs-front-end.vercel.app/documents/BRS_Dev_Doc.docx)
 ---
  
 ## 📖 About
