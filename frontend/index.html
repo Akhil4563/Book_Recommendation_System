@@ -665,6 +665,31 @@
     .hero { padding: 2.5rem 0 1.5rem; }
     .search-select { display: none; }
   }
+
+  /* ── BACKEND STATUS PILL ── */
+  .backend-status {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.5rem 0.9rem;
+    border-radius: 2rem;
+    border: 0.5px solid rgba(255,255,255,0.12);
+    font-size: 0.72rem;
+    color: rgba(245,240,232,0.55);
+    letter-spacing: 0.05em;
+  }
+  .backend-status .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #7a7060;
+    transition: background 0.3s;
+  }
+  .backend-status.online .dot { background: #8fc983; box-shadow: 0 0 8px rgba(143,201,131,0.6); }
+  .backend-status.waking .dot { background: var(--gold); animation: statusPulse 1.2s infinite; }
+  .backend-status.offline .dot { background: #e07c6a; }
+  @keyframes statusPulse { 0%,100% { opacity: 0.35; } 50% { opacity: 1; } }
+  @media (max-width: 600px) { .backend-status #backend-status-text { display: none; } }
+
 </style>
 </head>
 <body>
@@ -675,6 +700,7 @@
     <div class="logo-sub">AI Literary Guide</div>
   </div>
   <div class="header-actions">
+    <div class="backend-status" id="backend-status" title="Live backend status"><span class="dot"></span><span id="backend-status-text">Connecting…</span></div>
     <button class="mode-btn active" onclick="setMode('search')">Explore</button>
     <button class="mode-btn" onclick="setMode('chat')">Ask AI</button>
   </div>
@@ -684,7 +710,7 @@
 
   <!-- HERO -->
   <div class="hero" id="hero">
-    <div class="hero-eyebrow">Powered by NLP · 25,000+ Books</div>
+    <div class="hero-eyebrow" id="stat-eyebrow">Powered by NLP · 25,000 reader reviews analysed</div>
     <h1 class="hero-title">Find your next<br><em>great read</em></h1>
     <p class="hero-desc">Search any book for AI-generated insights, reader sentiment, and personalised recommendations.</p>
 
@@ -745,25 +771,167 @@
 </main>
 
 <footer>
-  BookMind · Built on <span>Flask + BART + NetworkX + Gensim</span> · 25,000 books indexed
+  BookMind · Built on <span>Flask + TextBlob + Gensim LDA + TF-IDF</span> · <span id="stat-footer">13,669 books indexed</span>
 </footer>
 
 <script>
-  const API = 'https://book-recommendation-system-8qdz.onrender.com';
+  /* ================================================================
+     BACKEND CONFIGURATION — this is the only line you ever edit.
+     Paste your live Render URL between the quotes (no trailing slash).
+     Example: window.BACKEND_URL = 'https://bookmind-backend.onrender.com';
+     ================================================================ */
+  window.BACKEND_URL = 'https://YOUR-RENDER-URL.onrender.com';
 
+  const API = String(window.BACKEND_URL || '').replace(/\/+$/, '');
+  const REQUEST_TIMEOUT_MS = 25000;   // per attempt
+  const WAKE_MAX_TRIES = 18;          // ~90s of polling while Render cold-starts
+  const WAKE_INTERVAL_MS = 5000;
+
+  console.log('[BookMind] Frontend loaded. Backend URL:', API || '(NOT SET!)');
+  if (!API || API.includes('YOUR-RENDER-URL')) {
+    console.error('[BookMind] ⚠ window.BACKEND_URL is not set. Edit index.html and paste your Render URL.');
+  }
+
+  /* ── UI helpers reused throughout ── */
   const SPINE_COLORS = [
     '#5c3d1e','#2d4a3e','#3d2b4a','#1e3a5c','#4a1e2d',
     '#3e3d1e','#1e4a3d','#4a3d1e','#2d1e4a','#1e2d4a'
   ];
-
   function spineColor(title) {
     let h = 0;
     for (let c of title) h = (h * 31 + c.charCodeAt(0)) & 0xffffffff;
     return SPINE_COLORS[Math.abs(h) % SPINE_COLORS.length];
   }
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                    .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/\n/g,'<br>');
+  }
+  function escAttrText(s) {   // for data-* attributes (quotes must be encoded)
+    return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  }
+  function titleCase(s) { return s.replace(/\b\w/g, c => c.toUpperCase()); }
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+  /* ── Backend status indicator (header pill) ── */
+  let serverAwake = false;
+  function setStatus(state, text) {
+    const el = document.getElementById('backend-status');
+    const txt = document.getElementById('backend-status-text');
+    if (!el) return;
+    el.classList.remove('online', 'waking', 'offline');
+    if (state) el.classList.add(state);
+    if (txt) txt.textContent = text ||
+      ({online:'Backend online', waking:'Waking backend…', offline:'Backend offline'}[state] || 'Connecting…');
+  }
+
+  function updateStats(health) {
+    try {
+      const books = Number(health.books_indexed);
+      const reviews = Number(health.reviews_analyzed);
+      if (books) {
+        const f = document.getElementById('stat-footer');
+        if (f) f.textContent = books.toLocaleString() + ' books indexed';
+      }
+      if (reviews) {
+        const e = document.getElementById('stat-eyebrow');
+        if (e) e.textContent = 'Powered by NLP · ' + reviews.toLocaleString() + ' reader reviews analysed';
+      }
+    } catch (err) { console.warn('[BookMind] Could not update stats:', err); }
+  }
+
+  /* ── Wake-up ping: Render free instances sleep after ~15 min idle.
+        We ping GET / as soon as the page opens so the server is warm
+        by the time the visitor runs their first search. ── */
+  let wakePromise = null;
+  function wakeServer() {
+    if (wakePromise) return wakePromise;    // only one wake loop at a time
+    wakePromise = (async () => {
+      setStatus('waking');
+      console.log('[BookMind] Pinging backend to wake it up (free servers sleep when idle)…');
+      for (let attempt = 1; attempt <= WAKE_MAX_TRIES; attempt++) {
+        try {
+          const res = await fetchWithTimeout(API + '/', { method: 'GET' }, REQUEST_TIMEOUT_MS);
+          if (res.ok) {
+            const health = await res.json();
+            serverAwake = true;
+            setStatus('online');
+            console.log('[BookMind] ✅ Backend is awake:', health);
+            updateStats(health);
+            wakePromise = null;
+            return true;
+          }
+          console.warn('[BookMind] Wake ping got HTTP', res.status, '(attempt', attempt + ')');
+        } catch (err) {
+          console.warn('[BookMind] Wake ping attempt', attempt, 'failed:', err.message);
+        }
+        await sleep(WAKE_INTERVAL_MS);
+      }
+      setStatus('offline');
+      console.error('[BookMind] ❌ Backend did not wake up after ' +
+        Math.round(WAKE_MAX_TRIES * WAKE_INTERVAL_MS / 1000) + 's. Check:\n' +
+        '  1. Is window.BACKEND_URL correct? Currently: ' + API + '\n' +
+        '  2. Is the Render service deployed and "Live"? Open the URL directly in a new tab.\n' +
+        '  3. Check the Render dashboard → Logs for Python errors.');
+      wakePromise = null;
+      return false;
+    })();
+    return wakePromise;
+  }
+
+  function fetchWithTimeout(url, options, ms) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(new Error('timeout after ' + ms + 'ms')), ms);
+    return fetch(url, { ...options, signal: ctrl.signal }).finally(() => clearTimeout(t));
+  }
+
+  /* ── Core API call with cold-start retry ── */
+  async function askBackend(intentName, bookTitle) {
+    const payload = {
+      queryResult: {
+        intent: { displayName: intentName },
+        parameters: { booktitle: bookTitle.toLowerCase() }
+      }
+    };
+    const url = API + '/webhook';
+    console.log('[BookMind] → POST', url, payload);
+
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const res = await fetchWithTimeout(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }, REQUEST_TIMEOUT_MS);
+
+        if (!res.ok) {
+          const bodyText = await res.text().catch(() => '');
+          console.error('[BookMind] Server responded HTTP', res.status, bodyText);
+          throw new Error('Server error ' + res.status);
+        }
+        const data = await res.json();
+        console.log('[BookMind] ← response:', data);
+        serverAwake = true;
+        setStatus('online');
+        return data.fulfillmentText || 'The server returned an empty response.';
+      } catch (err) {
+        console.error('[BookMind] Request attempt', attempt, 'failed:', err);
+        if (attempt === 1) {
+          // Most common cause on the free tier: server was asleep. Wake it, retry once.
+          const woke = await wakeServer();
+          if (!woke) break;
+        }
+      }
+    }
+    throw new Error('backend-unreachable');
+  }
+
+  const ERROR_HTML = `
+    Couldn't reach the BookMind backend. Free-tier servers sleep when idle and can take
+    <strong>up to a minute</strong> to wake — please try again shortly.
+    If it keeps failing, open the browser console (F12) for details.`;
+
+  /* ── Mode switching ── */
   let currentMode = 'search';
-
   function setMode(mode) {
     currentMode = mode;
     document.querySelectorAll('.mode-btn').forEach((b,i) => {
@@ -774,10 +942,11 @@
     document.getElementById('hero').style.display = mode==='search' ? '' : 'none';
   }
 
-  // ── SEARCH ──
+  /* ── SEARCH ── */
   function quickSearch(title, intent) {
     document.getElementById('search-input').value = title;
     document.getElementById('intent-select').value = intent;
+    setMode('search');
     doSearch();
   }
 
@@ -806,22 +975,13 @@
     };
 
     try {
-      const res = await fetch(API, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          queryResult: {
-            intent: { displayName: intentMap[intent] },
-            parameters: { booktitle: title.toLowerCase() }
-          }
-        })
-      });
-
-      if (!res.ok) throw new Error('Server error ' + res.status);
-      const data = await res.json();
-      renderResult(title, intent, data.fulfillmentText);
-    } catch (e) {
-      renderMockResult(title, intent);
+      const text = await askBackend(intentMap[intent], title);
+      renderResult(title, intent, text);
+    } catch (err) {
+      console.error('[BookMind] Search failed permanently:', err);
+      area.innerHTML = `
+        <div class="result-label">Connection problem</div>
+        <div class="error-msg">${ERROR_HTML}</div>`;
     }
   }
 
@@ -831,8 +991,6 @@
     const initials = title.slice(0,2).toUpperCase();
 
     let sentimentHTML = '';
-    let bodyHTML = `<div class="result-body">${escHtml(text)}</div>`;
-
     if (text.toLowerCase().includes('positive')) {
       sentimentHTML = `<span class="result-sentiment sentiment-positive">● Positive</span>`;
     } else if (text.toLowerCase().includes('negative')) {
@@ -841,23 +999,32 @@
       sentimentHTML = `<span class="result-sentiment sentiment-neutral">● Neutral</span>`;
     }
 
+    let bodyText = text;
     let topicsHTML = '';
+    let similarHTML = '';
+
     if (intent === 'topics' && text.includes('[')) {
       const match = text.match(/\[([^\]]+)\]/);
       if (match) {
         const words = match[1].split(',').map(w => w.trim().replace(/'/g,''));
-        topicsHTML = `<div class="topics-wrap">${words.map(w=>`<span class="topic-tag">${w}</span>`).join('')}</div>`;
+        topicsHTML = `<div class="topics-wrap">${words.map(w=>`<span class="topic-tag">${escHtml(w)}</span>`).join('')}</div>`;
       }
     }
 
-    let similarHTML = '';
     if (intent === 'similar') {
-      const titles = text.split(/[,\n]/).map(s=>s.trim()).filter(s=>s && s.length > 2 && s.length < 60);
+      // Backend may prefix a "closest match" note; the book list is always the last line.
+      const lines = text.split('\n').map(s=>s.trim()).filter(Boolean);
+      const listLine = lines[lines.length - 1];
+      const noteLines = lines.slice(0, -1);
+      const titles = listLine.split(',').map(s=>s.trim()).filter(s=>s && s.length > 1 && s.length < 80);
       if (titles.length > 1) {
+        bodyText = noteLines.join('\n') || 'Readers who enjoyed this book also gravitated to the titles below.';
         similarHTML = `
           <div class="rec-strip" style="margin-top:1rem">
             <div class="rec-strip-label">You might also enjoy</div>
-            <div class="rec-books">${titles.map(t=>`<button class="rec-book-pill" onclick="quickSearch('${escAttr(t)}','info')">${escHtml(t)}</button>`).join('')}</div>
+            <div class="rec-books">${titles.map(t=>
+              `<button class="rec-book-pill" data-qs-title="${escAttrText(t)}" data-qs-intent="info">${escHtml(t)}</button>`
+            ).join('')}</div>
           </div>`;
       }
     }
@@ -865,44 +1032,40 @@
     const intentLabel = {
       info:'Book Overview', positive:'Positive Reviews', negative:'Negative Reviews',
       similar:'Similar Books', topics:'Review Topics'
-    }[document.getElementById('intent-select').value] || 'Result';
+    }[intent] || 'Result';
+
+    const actions = [
+      ['positive','Positive reviews'], ['negative','Negative reviews'],
+      ['similar','Find similar'], ['topics','View topics']
+    ].map(([k,label]) =>
+      `<button class="action-btn" data-qs-title="${escAttrText(title)}" data-qs-intent="${k}">${label}</button>`
+    ).join('');
 
     area.innerHTML = `
       <div class="result-label">${intentLabel} — "${escHtml(title)}"</div>
       <div class="result-card">
         <div class="result-card-header">
-          <div class="book-spine" style="background:${color}">${initials}</div>
+          <div class="book-spine" style="background:${color}">${escHtml(initials)}</div>
           <div class="result-meta">
             <div class="result-title">${escHtml(titleCase(title))}</div>
             <div class="result-author">via BookMind AI</div>
             ${sentimentHTML}
           </div>
         </div>
-        ${bodyHTML}
+        <div class="result-body">${escHtml(bodyText)}</div>
         ${topicsHTML}
         ${similarHTML}
-        <div class="result-actions">
-          <button class="action-btn" onclick="quickSearch('${escAttr(title)}','positive')">Positive reviews</button>
-          <button class="action-btn" onclick="quickSearch('${escAttr(title)}','negative')">Negative reviews</button>
-          <button class="action-btn" onclick="quickSearch('${escAttr(title)}','similar')">Find similar</button>
-          <button class="action-btn" onclick="quickSearch('${escAttr(title)}','topics')">View topics</button>
-        </div>
+        <div class="result-actions">${actions}</div>
       </div>`;
   }
 
-  function renderMockResult(title, intent) {
-    const mocks = {
-      info: `Feedback for '${title}':\nOverall sentiment: Positive\nThe book is written by a celebrated author in this genre. It has garnered strong readership with an impressive overall rating across thousands of reviews.`,
-      positive: `Summary of positive review: "An absolutely gripping narrative that keeps you turning pages late into the night. The character development is superb and the world-building is immersive."\n\nMost positive review: "A masterpiece of modern storytelling. I couldn't put it down — one of the best books I've read in years."`,
-      negative: `Summary of negative review: "While the premise is intriguing, some readers found the pacing inconsistent in the middle chapters and felt the ending was rushed."\n\nMost negative review: "Started strong but lost its way by the third act. The protagonist's motivations felt unclear."`,
-      similar: `afterworld, magician tale, vampire story, love dog, bell toll`,
-      topics: `Main topics for '${title}': ['mystery', 'identity', 'love', 'betrayal', 'redemption']\n\nKey points: The narrative explores themes of personal identity against a backdrop of mystery and hidden betrayal. Characters grapple with questions of redemption throughout the story.`
-    };
-    const sel = document.getElementById('intent-select').value;
-    renderResult(title, sel, mocks[intent] || mocks[sel] || mocks.info);
-  }
+  // Event delegation for dynamically generated buttons (safe with any title text)
+  document.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('[data-qs-title]');
+    if (btn) quickSearch(btn.getAttribute('data-qs-title'), btn.getAttribute('data-qs-intent') || 'info');
+  });
 
-  // ── CHAT ──
+  /* ── CHAT ── */
   function fillChat(text) {
     document.getElementById('chat-input').value = text;
     document.getElementById('chat-input').focus();
@@ -919,32 +1082,17 @@
 
     const intent = detectIntent(text);
     const bookTitle = extractBook(text);
+    console.log('[BookMind] Chat parsed →', { intent, bookTitle });
 
     try {
-      const res = await fetch(API, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          queryResult: {
-            intent: { displayName: intent },
-            parameters: { booktitle: bookTitle }
-          }
-        })
-      });
+      const reply = await askBackend(intent, bookTitle);
       removeTyping(typingId);
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      addMsg('bot', data.fulfillmentText);
-    } catch {
+      addMsg('bot', reply);
+    } catch (err) {
       removeTyping(typingId);
-      const fallbacks = {
-        'General Information': `I found some information about "${bookTitle}". It appears to have a positive overall sentiment among readers. The book has been well received for its storytelling and character depth.`,
-        'PositiveFeedback': `Readers of "${bookTitle}" praised its compelling narrative, rich characters, and immersive world. Many described it as "unputdownable."`,
-        'NegativeFeedback': `Some readers of "${bookTitle}" felt the pacing could be tighter, and a few found the ending less satisfying than expected.`,
-        'SimilarBooksEntites': `Based on "${bookTitle}", you might enjoy: Afterworld, Magician Tale, Love Dog, Vampire Story, and Bell Toll.`,
-        'ReviewTopics': `Key themes in "${bookTitle}" include: identity, mystery, love, betrayal, and redemption.`
-      };
-      addMsg('bot', fallbacks[intent] || `I'd love to help with "${bookTitle}"! Try asking about its reviews, similar books, or key themes.`);
+      console.error('[BookMind] Chat request failed permanently:', err);
+      addMsg('bot', "I couldn't reach the recommendation server just now. Free-tier servers " +
+        "sleep when idle and can take up to a minute to wake up — please try that again in a moment.");
     }
   }
 
@@ -959,7 +1107,7 @@
 
   function extractBook(text) {
     const patterns = [
-      /(?:about|for|of|like|similar to|on|review of|reviews for)\s+["']?([a-z][a-z\s]{1,40}?)["']?(?:\?|$|,|\.|!)/i,
+      /(?:about|for|of|like|similar to|on|review of|reviews for|in)\s+(?:the book\s+)?["']?([a-z][a-z\s]{1,40}?)["']?(?:\?|$|,|\.|!)/i,
       /["']([^"']+)["']/,
     ];
     for (const p of patterns) {
@@ -1001,15 +1149,9 @@
     if (el) el.remove();
   }
 
-  // ── UTILS ──
-  function escHtml(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
-  }
-  function escAttr(s) { return String(s).replace(/'/g,"\\'"); }
-  function titleCase(s) { return s.replace(/\b\w/g, c => c.toUpperCase()); }
-
-  // Init
+  /* ── Init ── */
   setMode('search');
+  wakeServer();   // start warming the free-tier server the moment the page opens
 </script>
 </body>
 </html>
