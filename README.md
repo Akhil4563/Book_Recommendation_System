@@ -1,4 +1,28 @@
-## 🌐 Live Demo
+# 📚 BookMind — AI Book Recommendation System
+ 
+> An intelligent book recommendation engine powered by NLP, sentiment analysis, topic modeling, and content-based similarity — with a sleek literary-themed frontend. Re-architected to run entirely on free-tier infrastructure.
+ 
+![Python](https://img.shields.io/badge/Python-3.11-blue) ![Flask](https://img.shields.io/badge/Flask-REST%20API-green) ![NLP](https://img.shields.io/badge/NLP-LDA%20%7C%20TF--IDF%20%7C%20TextBlob-orange) ![Frontend](https://img.shields.io/badge/Frontend-HTML%20%7C%20CSS%20%7C%20JS-purple)
+ 
+---
+ 
+## 👤 My Role — Project Manager
+ 
+**Name:** Akhil Vijayan
+**Role:** Project Manager
+**Type:** University Capstone Project — University of Ottawa
+ 
+This was an academic capstone project where I took on the Project Manager role within a small team. My responsibilities included:
+ 
+- 📋 **Requirements & Scope** — Defined the project idea, scope, and functional requirements for the recommendation engine and chatbot interface
+- 🗓️ **Sprint Planning** — Organised development into sprints, set milestones, and kept the team on track to deliver
+- 👥 **Team Coordination** — Coordinated between team members handling ML, backend, data, and frontend to ensure everything came together
+- 🚀 **Deployment Oversight** — Managed the deployment process including backend hosting on Render and frontend hosting on Vercel
+- 🧪 **QA & Testing** — Coordinated testing across the full stack and ensured the system worked end to end
+- 📝 **Documentation** — Authored all project documentation including this README, API reference, and system architecture
+---
+  
+  ## 🌐 Live Demo
  
 - **Frontend (Vercel):** [bookmind-two.vercel.app](https://bookmind-two.vercel.app)
 - **Backend API (Render):** [book-recommendation-system-8qdz.onrender.com](https://book-recommendation-system-8qdz.onrender.com)
